@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from '../../context/GlobalContext';
 import { fetchLeaderboards, fetchLeaderboard, fetchCurrentLeaderboard, fetchLeaderboardTimeline } from '../../services/leaderboardService';
+import socketService, { SOCKET_EVENTS } from '../../services/socketService';
 import Timeline from './Timeline';
 import './Leaderboard.scss';
 
@@ -14,7 +15,7 @@ const LeaderboardTable = ({ leaderboard, players, timeline, onTimelineChange, er
   };
 
   const hasValidPlayers = players && Array.isArray(players) && players.length;
-  console.log(players, "players");
+
   return (
     <div className="leaderboard-container">
       <h2>{leaderboard.name}</h2>
@@ -44,7 +45,7 @@ const LeaderboardTable = ({ leaderboard, players, timeline, onTimelineChange, er
         <div className="leaderboard-body">
           {error ? (
             <div className="leaderboard-error-message">
-              No data available for this period
+              {error}
             </div>
           ) : hasValidPlayers ? (
             players
@@ -72,7 +73,7 @@ const LeaderboardTable = ({ leaderboard, players, timeline, onTimelineChange, er
 };
 
 const Leaderboard = () => {
-  const { globalConfig, setGlobalConfig, fetchEndpoint } = useGlobal();
+  const { globalConfig, fetchEndpoint } = useGlobal();
   const [leaderboards, setLeaderboards] = useState([]);
   const [leaderboardData, setLeaderboardData] = useState({});
   const [timelineData, setTimelineData] = useState({});
@@ -80,37 +81,114 @@ const Leaderboard = () => {
   const [error, setError] = useState(null);
   const [leaderboardErrors, setLeaderboardErrors] = useState({});
 
+  // Connect to socket when component mounts
+  useEffect(() => {
+    const connectSocket = async () => {
+      try {
+        if (!globalConfig.token || !globalConfig.promotionId) {
+          console.warn('Missing token or promotionId for socket connection');
+          return;
+        }
+
+        await socketService.connect(
+          globalConfig.token,
+          'Leaderboard',
+          globalConfig.promotionId
+        );
+
+        // Subscribe to leaderboard updates
+        const unsubscribe = socketService.subscribe(
+          SOCKET_EVENTS.LEADERBOARD_UPDATE,
+          handleLeaderboardUpdate
+        );
+
+        return () => {
+          unsubscribe();
+          socketService.disconnect();
+        };
+      } catch (err) {
+        console.error('Failed to connect to socket:', err);
+      }
+    };
+
+    connectSocket();
+  }, [globalConfig.token, globalConfig.promotionId]);
+
+  // Handle leaderboard updates from socket
+  const handleLeaderboardUpdate = (data) => {
+    try {
+      const { externalId, players } = data;
+      if (externalId && Array.isArray(players)) {
+        setLeaderboardData(prev => ({
+          ...prev,
+          [externalId]: players
+        }));
+        // Clear any errors for this leaderboard
+        setLeaderboardErrors(prev => ({
+          ...prev,
+          [externalId]: null
+        }));
+      }
+    } catch (err) {
+      console.error('Error handling leaderboard update:', err);
+    }
+  };
+
   // Handle timeline change and fetch appropriate data
   const handleTimelineChange = (leaderboard) => async (isCurrent) => {
     try {
       const { promotionId } = globalConfig;
-      const externalId = leaderboard.value.externalId.toString();
+      const currentExternalId = leaderboard.value.externalId.toString();
+
+      if (!promotionId || !currentExternalId) {
+        throw new Error('Missing required parameters');
+      }
 
       // Use appropriate fetch function based on whether it's current period
       const data = isCurrent
-        ? await fetchCurrentLeaderboard(fetchEndpoint, promotionId, externalId)
-        : await fetchLeaderboard(fetchEndpoint, promotionId, externalId);
+        ? await fetchCurrentLeaderboard(fetchEndpoint, promotionId, currentExternalId)
+        : await fetchLeaderboard(fetchEndpoint, promotionId, currentExternalId);
 
-      setLeaderboardData(prev => ({
-        ...prev,
-        [externalId]: data.players
-      }));
-      // Clear any previous errors for this leaderboard
-      setLeaderboardErrors(prev => ({
-        ...prev,
-        [externalId]: null
-      }));
+      if (!data) {
+        throw new Error('Failed to fetch leaderboard data');
+      }
+
+      // Check if the response indicates no results
+      if (data.succeeded === false && data.message === "No results found") {
+        setLeaderboardErrors(prev => ({
+          ...prev,
+          [currentExternalId]: "No data available for this period"
+        }));
+        setLeaderboardData(prev => ({
+          ...prev,
+          [currentExternalId]: []
+        }));
+        return;
+      }
+
+      if (data.players) {
+        setLeaderboardData(prev => ({
+          ...prev,
+          [currentExternalId]: data.players
+        }));
+        // Clear any previous errors for this leaderboard
+        setLeaderboardErrors(prev => ({
+          ...prev,
+          [currentExternalId]: null
+        }));
+      }
     } catch (err) {
       console.error('Error fetching leaderboard data:', err);
+      const currentExternalId = leaderboard.value.externalId.toString();
       // Set error for this specific leaderboard
       setLeaderboardErrors(prev => ({
         ...prev,
-        [externalId]: err.message
+        [currentExternalId]: err.message || 'Failed to fetch leaderboard data'
       }));
       // Clear any previous data for this leaderboard
       setLeaderboardData(prev => ({
         ...prev,
-        [externalId]: null
+        [currentExternalId]: []
       }));
     }
   };
@@ -127,25 +205,40 @@ const Leaderboard = () => {
         }
 
         const leaderboardsData = await fetchLeaderboards(fetchEndpoint, promotionId);
+        
+        if (!leaderboardsData || !Array.isArray(leaderboardsData)) {
+          throw new Error('Invalid leaderboards data received');
+        }
+
         setLeaderboards(leaderboardsData);
 
         // Fetch data for each leaderboard
         const dataPromises = leaderboardsData.map(async (leaderboard) => {
-          const data = await fetchCurrentLeaderboard(
-            fetchEndpoint,
-            promotionId,
-            leaderboard.value.externalId.toString()
-          );
-          return [leaderboard.value.externalId, data.players];
+          try {
+            const data = await fetchCurrentLeaderboard(
+              fetchEndpoint,
+              promotionId,
+              leaderboard.value.externalId.toString()
+            );
+            return [leaderboard.value.externalId, data?.players || []];
+          } catch (err) {
+            console.error(`Error fetching leaderboard ${leaderboard.value.externalId}:`, err);
+            return [leaderboard.value.externalId, []];
+          }
         });
 
         // Fetch timeline for each leaderboard
         const timelinePromises = leaderboardsData.map(async (leaderboard) => {
-          const timeline = await fetchLeaderboardTimeline(
-            fetchEndpoint,
-            leaderboard.value.externalId.toString()
-          );
-          return [leaderboard.value.externalId, timeline];
+          try {
+            const timeline = await fetchLeaderboardTimeline(
+              fetchEndpoint,
+              leaderboard.value.externalId.toString()
+            );
+            return [leaderboard.value.externalId, timeline];
+          } catch (err) {
+            console.error(`Error fetching timeline ${leaderboard.value.externalId}:`, err);
+            return [leaderboard.value.externalId, null];
+          }
         });
 
         const [dataResults, timelineResults] = await Promise.all([
@@ -156,7 +249,7 @@ const Leaderboard = () => {
         setLeaderboardData(Object.fromEntries(dataResults));
         setTimelineData(Object.fromEntries(timelineResults));
       } catch (err) {
-        setError(err.message);
+        setError(err.message || 'Failed to load leaderboards');
         console.error('Error loading leaderboards:', err);
       } finally {
         setLoading(false);
@@ -179,7 +272,6 @@ const Leaderboard = () => {
   if (!leaderboards.length) {
     return <div className="leaderboard-empty">No leaderboards available</div>;
   }
-console.log(leaderboardData, "leaderboards");
 
   return (
     <div className="leaderboards">
@@ -187,7 +279,7 @@ console.log(leaderboardData, "leaderboards");
         <LeaderboardTable
           key={leaderboard.value.externalId}
           leaderboard={leaderboard}
-          players={leaderboardData[leaderboard.value.externalId]}
+          players={leaderboardData[leaderboard.value.externalId] || []}
           error={leaderboardErrors[leaderboard.value.externalId]}
           timeline={timelineData[leaderboard.value.externalId]}
           onTimelineChange={handleTimelineChange(leaderboard)}

@@ -1,94 +1,83 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from '../../context/GlobalContext';
-import { fetchPlayerBalances } from '../../services/balanceService';
-import socketService, { SOCKET_EVENTS } from '../../services/socketService';
+import balanceService, { fetchPlayerBalances } from '../../services/balanceService';
 import './Balance.scss';
 
 const Balance = () => {
   const { globalConfig, fetchEndpoint } = useGlobal();
   const [balance, setBalance] = useState({
-    freespins: 0,
-    crystals: 0,
-    coinIn: 0
+    coinIn: { amount: 0, name: '' },
+    freespins: { amount: 0, name: '' },
+    promoCoin: { amount: 0, name: '' },
+    assetCoin: { amount: 0, name: '' }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Initial balance fetch
   useEffect(() => {
-    const loadBalances = async () => {
+    const loadInitialBalance = async () => {
       try {
-        setLoading(true);
-        if (!globalConfig.token) {
-          throw new Error('Authentication token not found');
+        if (!globalConfig.token || !globalConfig.promotionId) {
+          throw new Error('Missing token or promotionId');
         }
-        const balanceData = await fetchPlayerBalances(fetchEndpoint, globalConfig.promotionId, globalConfig.token);
-        
-        // Transform balance data into our format
-        const transformedBalance = {
-            coinIn: {amount: 0, name: ''},
-            freespins: {amount: 0, name: ''},
-            promoCoin: {amount: 0, name: ''},
-            assetCoin: {amount: 0, name: ''},
-        };
 
-        balanceData.balances.forEach(balance => {
-          switch (balance.coinType) {
-            case 1: // Coin-in 1
-              transformedBalance.coinIn.amount = balance.amount;
-              transformedBalance.coinIn.name = balance.coin;
-              break;
-            case 2: // Freespins (withdrawal) 1
-              transformedBalance.freespins.amount = balance.amount;
-              transformedBalance.freespins.name = balance.coin;
-              break;
-            case 3: // promo coin (only in promotion)
-              transformedBalance.promoCoin.amount = balance.amount;
-              transformedBalance.promoCoin.name = balance.coin;
-              break;
-            case 4: // asset coin (tangible)
-              transformedBalance.assetCoin.amount = balance.amount;
-              transformedBalance.assetCoin.name = balance.coin;
-              break;
-            default:
-              break;
-          }
-        });
+        setLoading(true);
+        const balanceData = await fetchPlayerBalances(
+          fetchEndpoint,
+          globalConfig.promotionId,
+          globalConfig.token
+        );
 
+        // Transform and set initial balance
+        const transformedBalance = balanceService.transformBalanceData(balanceData);
         setBalance(transformedBalance);
       } catch (err) {
+        console.error('Failed to fetch initial balance:', err);
         setError(err.message);
-        console.error('Error loading balances:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (globalConfig.promotionId && globalConfig.token) {
-      loadBalances();
-    }
-  }, [globalConfig.promotionId, globalConfig.token, fetchEndpoint]);
+    loadInitialBalance();
+  }, [globalConfig.token, globalConfig.promotionId, fetchEndpoint]);
 
-//   useEffect(() => {
-//     // Connect to socket when component mounts
-//     socketService.connect();
+  // Socket connection and updates
+  useEffect(() => {
+    const initializeSocket = async () => {
+      try {
+        if (!globalConfig.token || !globalConfig.promotionId) {
+          return;
+        }
 
-//     // Subscribe to balance updates
-//     const unsubscribe = socketService.subscribe(
-//       SOCKET_EVENTS.BALANCE_UPDATE,
-//       (newBalance) => {
-//         setBalance(prevBalance => ({
-//           ...prevBalance,
-//           ...newBalance
-//         }));
-//       }
-//     );
+        // Initialize balance service with socket connection
+        await balanceService.initialize(
+          globalConfig.token,
+          globalConfig.promotionId
+        );
 
-//     // Cleanup on unmount
-//     return () => {
-//       unsubscribe();
-//       socketService.disconnect();
-//     };
-//   }, []);
+        // Subscribe to balance updates
+        const unsubscribe = balanceService.subscribe((socketBalance) => {
+          setBalance(prev => ({
+            coinIn: { ...prev.coinIn, amount: socketBalance.coinIn },
+            freespins: { ...prev.freespins, amount: socketBalance.freespins },
+            promoCoin: { ...prev.promoCoin, amount: socketBalance.promoCoin },
+            assetCoin: { ...prev.assetCoin, amount: socketBalance.assetCoin }
+          }));
+        });
+
+        return () => {
+          unsubscribe();
+          balanceService.cleanup();
+        };
+      } catch (err) {
+        console.error('Failed to initialize socket:', err);
+      }
+    };
+
+    initializeSocket();
+  }, [globalConfig.token, globalConfig.promotionId]);
 
   if (loading) {
     return <div className="balance-loading">Loading balance...</div>;

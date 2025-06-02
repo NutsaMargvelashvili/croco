@@ -213,7 +213,7 @@ export const fetchLeaderboard = async (fetchEndpoint, promotionId, externalId) =
     console.log('API Response:', response);
 
     if (!response) {
-      throw new Error('Failed to fetch leaderboard progress');
+      // throw new Error('Failed to fetch leaderboard progress');
     }
 
     const progressData = response;
@@ -238,9 +238,10 @@ export const fetchLeaderboard = async (fetchEndpoint, promotionId, externalId) =
     console.log('Nuts:', progressData);
     console.log('Processed leaderboard data:', leaderboardData);
     return leaderboardData;
-  } catch (error) {
+  }
+   catch (error) {
     console.error('Error in fetchLeaderboard:', error);
-    throw error;
+    // throw error;
   }
 };
 

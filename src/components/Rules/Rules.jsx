@@ -70,7 +70,8 @@ const Rules = () => {
         setLoading(true);
         const rulesData = await fetchRules(fetchEndpoint, globalConfig.promotionId);
         
-        const parsedRules = [{
+        const parsedRules = [
+            {
           title: "წესები",
           content: [
             {

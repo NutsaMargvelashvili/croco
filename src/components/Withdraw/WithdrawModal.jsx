@@ -74,7 +74,7 @@ const WithdrawModal = ({
           <div className="modal-footer">
             <div className="total-amount">
               <span className="amount-icon">🎰</span>
-              <span className="amount">{ selectedGame ? ((freespinValue * freespins) / selectedGame.value).toFixed(0) : 0}</span>
+              <span className="amount">{ selectedGame ? Math.floor((freespinValue * freespins) / selectedGame.value) : 0}</span>
               <span className="amount-label">Free Spins Available</span>
             </div>
             <button 

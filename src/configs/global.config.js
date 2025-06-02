@@ -1,5 +1,5 @@
 export const globals = {
   defaultLanguage: 'en',
-  promotionId: '14',
-  token: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJQbGF5ZXJJZCI6IjgiLCJVc2VyTmFtZSI6IlFBVGVzdCIsIlNlZ21lbnRJZHMiOiJkZWZhdWx0LGRlZmF1bHQiLCJleHAiOjIzNDgzNDYwNTYsImlzcyI6IkhVQiIsImF1ZCI6IkhVQi1BVURJRU5DRSJ9.PYKHCRrAX7X6TIajSVH9i_AFnOlGa-tdBU0i-T0WysgorJIUYs9knbe6rrlC7Lv6R5efGXAPelUXzbsuVYfX9g",
+  promotionId: '50',
+  token: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJQbGF5ZXJJZCI6IjEzIiwiVXNlck5hbWUiOiJNYXJpYW1UZXN0IiwiU2VnbWVudElkcyI6ImRlZmF1bHQsZGVmYXVsdCIsImV4cCI6MjM0ODUwMTY4MCwiaXNzIjoiSFVCIiwiYXVkIjoiSFVCLUFVRElFTkNFIn0.NzadcNu0hrjjxb1YJzHUAyLCJGfBdy7xcm9vXo5_ZbuCGLqMO4teUkVfjvRkcI7innT8mGJR_sHqvsjtMBix8A",
 }

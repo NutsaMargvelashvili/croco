@@ -15,8 +15,25 @@ const tryParseJson = (text) => {
 };
 
 export const GlobalProvider = ({ children }) => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const promotionIdFromUrl = urlParams.get("promotionId") || 
+                           urlParams.get("promotionid") || 
+                           urlParams.get("promotion-id") ||
+                           urlParams.get("promoId") ||
+                           urlParams.get("promoid");
+  
+  const tokenFromUrl = urlParams.get("token");
+  const externalIdFromUrl = urlParams.get("externalId") || 
+                          urlParams.get("externalid") || 
+                          urlParams.get("external-id") || 
+                          urlParams.get("leaderboardId") || 
+                          urlParams.get("leaderboardid");
+
   const [globalConfig, setGlobalConfig] = useState({
     ...globals,
+    promotionId: promotionIdFromUrl || globals.promotionId,
+    token: tokenFromUrl || globals.token,
+    externalId: externalIdFromUrl,
     translate: (text, lang) => {
       const parsed = tryParseJson(text);
       if (parsed.parsedSuccessfully) {
@@ -33,49 +50,71 @@ export const GlobalProvider = ({ children }) => {
   useEffect(() => {
     const setupGlobals = async () => {
       const urlParams = new URLSearchParams(window.location.search);
+      let promotionId = globalConfig.promotionId;
+      
+      if (!promotionId) {
+        const userInput = prompt("Enter promotionId", "");
+        if (userInput) {
+          promotionId = userInput;
+        } else {
+          promotionId = "default-promotion";
+        }
+        setGlobalConfig(prev => ({
+          ...prev,
+          promotionId
+        }));
+      }
+      
+      // Always update URL with current promotionId
+      urlParams.set("promotionId", promotionId);
+      window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+    };
+
+    setupGlobals();
+  }, []);
+
+  // Add effect to handle URL parameter changes
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const urlParams = new URLSearchParams(window.location.search);
       const promotionIdFromUrl = urlParams.get("promotionId") || 
                                urlParams.get("promotionid") || 
                                urlParams.get("promotion-id") ||
                                urlParams.get("promoId") ||
                                urlParams.get("promoid");
       
-      let promotionId = promotionIdFromUrl || "";
-      
-      if (!promotionId && globalConfig.promotionId) {
-        promotionId = globalConfig.promotionId;
-        urlParams.set("promotionId", promotionId);
-        window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
-      }
-      
-      if (!promotionId) {
-        const userInput = prompt("Enter promotionId", "");
-        if (userInput) {
-          promotionId = userInput;
-          urlParams.set("promotionId", promotionId);
-          window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
-        } else {
-          promotionId = "default-promotion";
-        }
+      const tokenFromUrl = urlParams.get("token");
+      const externalIdFromUrl = urlParams.get("externalId") || 
+                              urlParams.get("externalid") || 
+                              urlParams.get("external-id") || 
+                              urlParams.get("leaderboardId") || 
+                              urlParams.get("leaderboardid");
+
+      if (promotionIdFromUrl) {
+        setGlobalConfig(prev => ({
+          ...prev,
+          promotionId: promotionIdFromUrl
+        }));
       }
 
-      const token = urlParams.get("token") ||
-        "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJQbGF5ZXJJZCI6IjgiLCJVc2VyTmFtZSI6IlFBVGVzdCIsIlNlZ21lbnRJZHMiOiJkZWZhdWx0LGRlZmF1bHQiLCJleHAiOjIzNDgzNDYwNTYsImlzcyI6IkhVQiIsImF1ZCI6IkhVQi1BVURJRU5DRSJ9.PYKHCRrAX7X6TIajSVH9i_AFnOlGa-tdBU0i-T0WysgorJIUYs9knbe6rrlC7Lv6R5efGXAPelUXzbsuVYfX9g";
+      if (tokenFromUrl) {
+        setGlobalConfig(prev => ({
+          ...prev,
+          token: tokenFromUrl
+        }));
+      }
 
-      const externalId = urlParams.get("externalId") || 
-                        urlParams.get("externalid") || 
-                        urlParams.get("external-id") || 
-                        urlParams.get("leaderboardId") || 
-                        urlParams.get("leaderboardid");
-
-      setGlobalConfig(prev => ({
-        ...prev,
-        promotionId,
-        token,
-        externalId
-      }));
+      if (externalIdFromUrl) {
+        setGlobalConfig(prev => ({
+          ...prev,
+          externalId: externalIdFromUrl
+        }));
+      }
     };
 
-    setupGlobals();
+    // Listen for URL changes
+    window.addEventListener('popstate', handleUrlChange);
+    return () => window.removeEventListener('popstate', handleUrlChange);
   }, []);
 
   return (
