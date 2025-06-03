@@ -16,24 +16,31 @@ const tryParseJson = (text) => {
 
 export const GlobalProvider = ({ children }) => {
   const urlParams = new URLSearchParams(window.location.search);
+  
+  // Get values from URL or fall back to global config
   const promotionIdFromUrl = urlParams.get("promotionId") || 
                            urlParams.get("promotionid") || 
                            urlParams.get("promotion-id") ||
                            urlParams.get("promoId") ||
                            urlParams.get("promoid");
   
+  const externalId1FromUrl = urlParams.get("externalId1") ||
+                           urlParams.get("externalid1") ||
+                           urlParams.get("external-id1");
+                           
+  const externalId2FromUrl = urlParams.get("externalId2") ||
+                           urlParams.get("externalid2") ||
+                           urlParams.get("external-id2");
+                           
   const tokenFromUrl = urlParams.get("token");
-  const externalIdFromUrl = urlParams.get("externalId") || 
-                          urlParams.get("externalid") || 
-                          urlParams.get("external-id") || 
-                          urlParams.get("leaderboardId") || 
-                          urlParams.get("leaderboardid");
 
+  // Initialize with URL values or global config values
   const [globalConfig, setGlobalConfig] = useState({
     ...globals,
     promotionId: promotionIdFromUrl || globals.promotionId,
+    externalId1: externalId1FromUrl || globals.externalId1,
+    externalId2: externalId2FromUrl || globals.externalId2,
     token: tokenFromUrl || globals.token,
-    externalId: externalIdFromUrl,
     translate: (text, lang) => {
       const parsed = tryParseJson(text);
       if (parsed.parsedSuccessfully) {
@@ -47,32 +54,52 @@ export const GlobalProvider = ({ children }) => {
     }
   });
 
+  
+
+
+
   useEffect(() => {
     const setupGlobals = async () => {
       const urlParams = new URLSearchParams(window.location.search);
-      let promotionId = globalConfig.promotionId;
-      
-      if (!promotionId) {
-        const userInput = prompt("Enter promotionId", "");
-        if (userInput) {
-          promotionId = userInput;
-        } else {
-          promotionId = "default-promotion";
-        }
-        setGlobalConfig(prev => ({
-          ...prev,
-          promotionId
-        }));
-      }
-      
-      // Always update URL with current promotionId
+      let valuesUpdated = false;
+  
+      // Get values from URL first, then globals
+      const promotionId = urlParams.get("promotionId") || 
+                         urlParams.get("promotionid") || 
+                         urlParams.get("promotion-id") ||
+                         urlParams.get("promoId") ||
+                         urlParams.get("promoid") ||
+                         globals.promotionId ||
+                         prompt("Enter promotionId", "") 
+  
+      const externalId1 = urlParams.get("externalId1") ||
+                         urlParams.get("externalid1") ||
+                         urlParams.get("external-id1") ||
+                         globals.externalId1 ||
+                         prompt("Enter externalId1", "") 
+  
+      const externalId2 = urlParams.get("externalId2") ||
+                         urlParams.get("externalid2") ||
+                         urlParams.get("external-id2") ||
+                         globals.externalId2 ||
+                         prompt("Enter externalId2", "") 
+  
+      // Update state with new values
+      setGlobalConfig(prev => ({
+        ...prev,
+        promotionId,
+        externalId1,
+        externalId2
+      }));
+  
+      // Update URL with final values
       urlParams.set("promotionId", promotionId);
+      if (externalId1) urlParams.set("externalId1", externalId1);
+      if (externalId2) urlParams.set("externalId2", externalId2);
       window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
     };
-
-    setupGlobals();
-  }, []);
-
+    setupGlobals()
+  },[])
   // Add effect to handle URL parameter changes
   useEffect(() => {
     const handleUrlChange = () => {
@@ -84,32 +111,21 @@ export const GlobalProvider = ({ children }) => {
                                urlParams.get("promoid");
       
       const tokenFromUrl = urlParams.get("token");
-      const externalIdFromUrl = urlParams.get("externalId") || 
-                              urlParams.get("externalid") || 
-                              urlParams.get("external-id") || 
-                              urlParams.get("leaderboardId") || 
-                              urlParams.get("leaderboardid");
+      const externalId1FromUrl = urlParams.get("externalId1") ||
+                               urlParams.get("externalid1") ||
+                               urlParams.get("external-id1");
+                               
+      const externalId2FromUrl = urlParams.get("externalId2") ||
+                               urlParams.get("externalid2") ||
+                               urlParams.get("external-id2");
 
-      if (promotionIdFromUrl) {
-        setGlobalConfig(prev => ({
-          ...prev,
-          promotionId: promotionIdFromUrl
-        }));
-      }
-
-      if (tokenFromUrl) {
-        setGlobalConfig(prev => ({
-          ...prev,
-          token: tokenFromUrl
-        }));
-      }
-
-      if (externalIdFromUrl) {
-        setGlobalConfig(prev => ({
-          ...prev,
-          externalId: externalIdFromUrl
-        }));
-      }
+      setGlobalConfig(prev => ({
+        ...prev,
+        promotionId: promotionIdFromUrl || globals.promotionId || prev.promotionId,
+        externalId1: externalId1FromUrl || globals.externalId1 || prev.externalId1,
+        externalId2: externalId2FromUrl || globals.externalId2 || prev.externalId2,
+        token: tokenFromUrl || globals.token || prev.token
+      }));
     };
 
     // Listen for URL changes

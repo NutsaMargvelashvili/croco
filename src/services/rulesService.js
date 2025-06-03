@@ -95,18 +95,18 @@ const PROMOTION_SCHEMA = {
   "type": "object"
 };
 
-export const fetchRules = async (fetchEndpoint, promotionId) => {
-  const promotion = {
-    endpoint: "http://192.168.88.201:5003/api/Builder/GetPromotionForBuilder",
-    requestMethod: "GET",
-    schemaType: {},
-    endpointType: "DT",
-    schema: JSON.stringify(PROMOTION_SCHEMA)
-  };
+// export const fetchRules = async (fetchEndpoint, promotionId) => {
+//   const promotion = {
+//     endpoint: "http://192.168.88.201:5003/api/Builder/GetPromotionForBuilder",
+//     requestMethod: "GET",
+//     schemaType: {},
+//     endpointType: "DT",
+//     schema: JSON.stringify(PROMOTION_SCHEMA)
+//   };
 
-  const response = await fetchEndpoint(promotion, {
-    query: { id: promotionId }
-  });
+//   const response = await fetchEndpoint(promotion, {
+//     query: { id: promotionId }
+//   });
 
-  return response.data?.rules || '';
-};
+//   return response.data?.rules || '';
+// };

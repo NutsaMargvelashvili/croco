@@ -81,54 +81,6 @@ const LEADERBOARD_TIMELINE_SCHEMA = {
   }
 };
 
-export const fetchLeaderboards = async (fetchEndpoint, promotionId) => {
-  try {
-    console.log('Fetching leaderboards for promotion:', promotionId);
-    
-    const promotion = {
-      endpoint: "http://192.168.88.201:5003/api/Builder/GetPromotionForBuilder",
-      requestMethod: "GET",
-      schemaType: {},
-      endpointType: "DT",
-      schema: JSON.stringify(LEADERBOARD_SCHEMA)
-    };
-
-    console.log('Making API request with:', {
-      endpoint: promotion.endpoint,
-      promotionId
-    });
-
-    const response = await fetchEndpoint(promotion, {
-      query: { id: promotionId }
-    });
-
-    console.log('API response:', response);
-
-    if (response.data?.leaderboards) {
-      const leaderboards = response.data.leaderboards.map(leaderboard => ({
-        name: leaderboard.title,
-        value: leaderboard,
-        prizes: leaderboard.prizes,
-        startDate: new Date(leaderboard.startDate),
-        endDate: new Date(leaderboard.endDate),
-        description: leaderboard.description,
-        externalId: leaderboard.externalId
-      }));
-      console.log('Processed leaderboards:', leaderboards);
-      return leaderboards;
-    }
-
-    console.log('No leaderboards found in response');
-    return [];
-  } catch (error) {
-    console.error('Error in fetchLeaderboards:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack
-    });
-    throw error;
-  }
-};
 
 export const fetchCurrentLeaderboard = async (fetchEndpoint, promotionId, externalId) => {
   try {

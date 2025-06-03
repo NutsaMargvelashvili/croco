@@ -1,86 +1,71 @@
 import { useState, useEffect, useRef } from 'react';
-import { fetchGames } from '../../services/gameService';
 import { useGlobal } from '../../context/GlobalContext';
 import './Game.scss';
 
 const Game = () => {
-  const { globalConfig, fetchEndpoint } = useGlobal();
-  const [score, setScore] = useState(0);
-  const [isGameOver, setIsGameOver] = useState(false);
-  const [currentGame, setCurrentGame] = useState(null);
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { globalConfig } = useGlobal();
   const [error, setError] = useState(null);
   const iframeRef = useRef(null);
 
   useEffect(() => {
-    const loadGames = async () => {
-      try {
-        setLoading(true);
-        const { promotionId } = globalConfig;
-        console.log(promotionId, "promotion id");
-        
-        if (!promotionId) {
-          throw new Error('Promotion ID not found');
-        }
+    // Only proceed if iframe is mounted
+    console.log(iframeRef.current, "iframe ref");
+    if (!iframeRef.current) return;
 
-        const gamesData = await fetchGames(fetchEndpoint, promotionId);
-        setGames(gamesData);
-        console.log(gamesData, "games data");
-        
-        // Set the first game as current if available
-        if (gamesData.length > 0) {
-          setCurrentGame(gamesData[0].value);
-        }
-      } catch (err) {
-        setError(err.message);
-        console.error('Error loading games:', err);
-      } finally {
-        setLoading(false);
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      let gameUrl = "http://192.168.88.201:8091/";
+      
+      // Get promotionId from globals first, then URL
+      const promotionId = globalConfig.promotionId || 
+                         urlParams.get("promotionId") || 
+                         urlParams.get("promotionid") || 
+                         urlParams.get("promotion-id");
+      
+      // Get token from globals first, then URL
+      const token = globalConfig.token || urlParams.get("token");
+
+      // Update URL parameters if values are from globals
+      const newUrlParams = new URLSearchParams(window.location.search);
+      
+      if (promotionId && !urlParams.has("promotionid")) {
+        newUrlParams.set("promotionid", promotionId);
       }
-    };
+      
+      if (token && !urlParams.has("token")) {
+        newUrlParams.set("token", token);
+      }
 
-    loadGames();
-  }, [globalConfig.promotionId, fetchEndpoint]);
+      // Update browser URL if parameters were added
+      const newSearch = newUrlParams.toString();
+      if (newSearch !== urlParams.toString()) {
+        window.history.replaceState(
+          {}, 
+          '', 
+          `${window.location.pathname}${newSearch ? '?' + newSearch : ''}`
+        );
+      }
 
-  useEffect(() => {
-    if (currentGame?.url && iframeRef.current) {
-      try {
-        let gameUrl = currentGame.url;
-        console.log(gameUrl, "game url");
-        if (globalConfig.token) {
-            console.log(globalConfig.token, "token");
-          gameUrl += gameUrl.includes('token') ? 
-            globalConfig.token : 
-            `&token=${globalConfig.token}`;
-        }
-        iframeRef.current.src = gameUrl;
-      } catch (err) {
-        console.error('Error setting game URL:', err);
+      // Add promotionId if available
+      if (promotionId) {
+        gameUrl += `?promotionid=${promotionId}`;
+      }
+      
+      // Add token if available
+      if (token) {
+        gameUrl += gameUrl.includes('?') ? `&token=${token}` : `?token=${token}`;
+      }
+
+      console.log('Setting game URL:', gameUrl);
+      iframeRef.current.src = gameUrl;
+    } catch (err) {
+      console.error('Error setting game URL:', err);
+      if (iframeRef.current) {
         iframeRef.current.src = 'about:blank';
       }
+      setError(err.message);
     }
-  }, [currentGame, globalConfig.token]);
-
-  const handleGameChange = (game) => {
-    setCurrentGame(game.value);
-  };
-
-//   const handleGameOver = () => {
-//     setIsGameOver(true);
-//   };
-
-  const resetGame = () => {
-    setScore(0);
-    setIsGameOver(false);
-    if (iframeRef.current && currentGame?.url) {
-      iframeRef.current.src = currentGame.url;
-    }
-  };
-
-  if (loading) {
-    return <div className="game-loading">Loading games...</div>;
-  }
+  }, [globalConfig.promotionId, globalConfig.token, iframeRef.current]);
 
   if (error) {
     return <div className="game-error">Error: {error}</div>;
@@ -88,9 +73,6 @@ const Game = () => {
 
   return (
     <div className="game-container">
-      <div className="game-header">
-      </div>
-      
       <div className="game-area">
         <div className="game-frame-container">
           <iframe
@@ -101,14 +83,6 @@ const Game = () => {
             allowFullScreen
           />
         </div>
-
-        {isGameOver && (
-          <div className="game-over">
-            <h3>Game Over!</h3>
-            <p>Final Score: {score}</p>
-            <button onClick={resetGame}>Play Again</button>
-          </div>
-        )}
       </div>
     </div>
   );

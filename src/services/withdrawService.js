@@ -136,17 +136,17 @@ export const fetchWithdrawOptions = async (fetchEndpoint, promotionId, token) =>
 
 export const fetchFreespinValue = async (fetchEndpoint, promotionId) => {
   const promotion = {
-    endpoint: "http://192.168.88.201:5003/api/Builder/GetPromotionForBuilder",
+    endpoint: "http://192.168.88.201:5003/api/Builder/GetPromotionCoins",
     requestMethod: "GET",
     schemaType: {},
     endpointType: "DT",
   };
 
   const response = await fetchEndpoint(promotion, {
-    query: { id: promotionId }
+    query: { promotionId: promotionId }
   });
 
-  return response.data?.promotionCoins.find(coin => coin.coinType === 2)?.value || 0;
+  return response.find(coin => coin.coinType === 2)?.value || 0;
 };
 
 export const withdrawBalance = async (fetchEndpoint, promotionId, withdrawOptionId, token) => {

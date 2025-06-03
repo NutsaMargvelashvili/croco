@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from '../../context/GlobalContext';
-import { fetchRules } from '../../services/rulesService';
 import './Rules.scss';
 
 const RuleItem = ({ title, content, isOpen, onToggle }) => {
@@ -68,7 +67,7 @@ const Rules = () => {
     const loadRules = async () => {
       try {
         setLoading(true);
-        const rulesData = await fetchRules(fetchEndpoint, globalConfig.promotionId);
+        // const rulesData = await fetchRules(fetchEndpoint, globalConfig.promotionId);
         
         const parsedRules = [
             {

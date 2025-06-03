@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from '../../context/GlobalContext';
-import { fetchLeaderboards, fetchLeaderboard, fetchCurrentLeaderboard, fetchLeaderboardTimeline } from '../../services/leaderboardService';
+import { fetchLeaderboard, fetchCurrentLeaderboard, fetchLeaderboardTimeline } from '../../services/leaderboardService';
 import socketService, { SOCKET_EVENTS } from '../../services/socketService';
 import Timeline from './Timeline';
 import './Leaderboard.scss';
@@ -15,6 +15,7 @@ const LeaderboardTable = ({ leaderboard, players, timeline, onTimelineChange, er
   };
 
   const hasValidPlayers = players && Array.isArray(players) && players.length;
+  const prizes = leaderboard?.prizes || [];
 
   return (
     <div className="leaderboard-container">
@@ -57,7 +58,7 @@ const LeaderboardTable = ({ leaderboard, players, timeline, onTimelineChange, er
                   <div className="column-player">{player.name}</div>
                   <div className="column-points">{player.points}</div>
                   <div className="column-prize">
-                    {leaderboard.prizes[index]?.amount ? `${leaderboard.prizes[index].amount} ${leaderboard.prizes[index].coinId?.split('_')[1] || ''}` : '-'}
+                    {prizes[index]?.amount ? `${prizes[index].amount} ${prizes[index].coinId?.split('_')[1] || ''}` : '-'}
                   </div>
                 </div>
               ))
@@ -81,59 +82,6 @@ const Leaderboard = () => {
   const [error, setError] = useState(null);
   const [leaderboardErrors, setLeaderboardErrors] = useState({});
 
-  // Connect to socket when component mounts
-  useEffect(() => {
-    const connectSocket = async () => {
-      try {
-        if (!globalConfig.token || !globalConfig.promotionId) {
-          console.warn('Missing token or promotionId for socket connection');
-          return;
-        }
-
-        await socketService.connect(
-          globalConfig.token,
-          'Leaderboard',
-          globalConfig.promotionId
-        );
-
-        // Subscribe to leaderboard updates
-        const unsubscribe = socketService.subscribe(
-          SOCKET_EVENTS.LEADERBOARD_UPDATE,
-          handleLeaderboardUpdate
-        );
-
-        return () => {
-          unsubscribe();
-          socketService.disconnect();
-        };
-      } catch (err) {
-        console.error('Failed to connect to socket:', err);
-      }
-    };
-
-    connectSocket();
-  }, [globalConfig.token, globalConfig.promotionId]);
-
-  // Handle leaderboard updates from socket
-  const handleLeaderboardUpdate = (data) => {
-    try {
-      const { externalId, players } = data;
-      if (externalId && Array.isArray(players)) {
-        setLeaderboardData(prev => ({
-          ...prev,
-          [externalId]: players
-        }));
-        // Clear any errors for this leaderboard
-        setLeaderboardErrors(prev => ({
-          ...prev,
-          [externalId]: null
-        }));
-      }
-    } catch (err) {
-      console.error('Error handling leaderboard update:', err);
-    }
-  };
-
   // Handle timeline change and fetch appropriate data
   const handleTimelineChange = (leaderboard) => async (isCurrent) => {
     try {
@@ -153,7 +101,6 @@ const Leaderboard = () => {
         throw new Error('Failed to fetch leaderboard data');
       }
 
-      // Check if the response indicates no results
       if (data.succeeded === false && data.message === "No results found") {
         setLeaderboardErrors(prev => ({
           ...prev,
@@ -171,7 +118,6 @@ const Leaderboard = () => {
           ...prev,
           [currentExternalId]: data.players
         }));
-        // Clear any previous errors for this leaderboard
         setLeaderboardErrors(prev => ({
           ...prev,
           [currentExternalId]: null
@@ -180,12 +126,10 @@ const Leaderboard = () => {
     } catch (err) {
       console.error('Error fetching leaderboard data:', err);
       const currentExternalId = leaderboard.value.externalId.toString();
-      // Set error for this specific leaderboard
       setLeaderboardErrors(prev => ({
         ...prev,
         [currentExternalId]: err.message || 'Failed to fetch leaderboard data'
       }));
-      // Clear any previous data for this leaderboard
       setLeaderboardData(prev => ({
         ...prev,
         [currentExternalId]: []
@@ -193,73 +137,69 @@ const Leaderboard = () => {
     }
   };
 
-  // Fetch all leaderboards
+  // Fetch initial data
   useEffect(() => {
-    const loadLeaderboards = async () => {
+    const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const { promotionId } = globalConfig;
-        
-        if (!promotionId) {
-          throw new Error('Promotion ID not found');
+        setError(null);
+
+        if (!globalConfig.externalId1 || !globalConfig.externalId2) {
+          throw new Error('Both leaderboard IDs are required');
         }
 
-        const leaderboardsData = await fetchLeaderboards(fetchEndpoint, promotionId);
-        
-        if (!leaderboardsData || !Array.isArray(leaderboardsData)) {
-          throw new Error('Invalid leaderboards data received');
-        }
+        // Create leaderboard objects
+        const leaderboardsData = [
+          { 
+            name: 'Leaderboard 1',
+            value: { 
+              externalId: globalConfig.externalId1,
+              id: 1
+            }
+          },
+          { 
+            name: 'Leaderboard 2',
+            value: { 
+              externalId: globalConfig.externalId2,
+              id: 2
+            }
+          }
+        ];
 
         setLeaderboards(leaderboardsData);
 
-        // Fetch data for each leaderboard
-        const dataPromises = leaderboardsData.map(async (leaderboard) => {
-          try {
-            const data = await fetchCurrentLeaderboard(
-              fetchEndpoint,
-              promotionId,
-              leaderboard.value.externalId.toString()
-            );
-            return [leaderboard.value.externalId, data?.players || []];
-          } catch (err) {
-            console.error(`Error fetching leaderboard ${leaderboard.value.externalId}:`, err);
-            return [leaderboard.value.externalId, []];
-          }
-        });
-
-        // Fetch timeline for each leaderboard
-        const timelinePromises = leaderboardsData.map(async (leaderboard) => {
-          try {
-            const timeline = await fetchLeaderboardTimeline(
-              fetchEndpoint,
-              leaderboard.value.externalId.toString()
-            );
-            return [leaderboard.value.externalId, timeline];
-          } catch (err) {
-            console.error(`Error fetching timeline ${leaderboard.value.externalId}:`, err);
-            return [leaderboard.value.externalId, null];
-          }
-        });
-
-        const [dataResults, timelineResults] = await Promise.all([
-          Promise.all(dataPromises),
-          Promise.all(timelinePromises)
+        // Fetch data for both leaderboards
+        const [data1, data2, timeline1, timeline2] = await Promise.all([
+          fetchCurrentLeaderboard(fetchEndpoint, globalConfig.promotionId, globalConfig.externalId1),
+          fetchCurrentLeaderboard(fetchEndpoint, globalConfig.promotionId, globalConfig.externalId2),
+          fetchLeaderboardTimeline(fetchEndpoint, globalConfig.externalId1),
+          fetchLeaderboardTimeline(fetchEndpoint, globalConfig.externalId2)
         ]);
 
-        setLeaderboardData(Object.fromEntries(dataResults));
-        setTimelineData(Object.fromEntries(timelineResults));
+        // Set leaderboard data
+        setLeaderboardData({
+          [globalConfig.externalId1]: data1?.players || [],
+          [globalConfig.externalId2]: data2?.players || []
+        });
+
+        // Set timeline data
+        setTimelineData({
+          [globalConfig.externalId1]: timeline1,
+          [globalConfig.externalId2]: timeline2
+        });
+
       } catch (err) {
-        setError(err.message || 'Failed to load leaderboards');
-        console.error('Error loading leaderboards:', err);
+        console.error('Error fetching leaderboards:', err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    if (globalConfig.promotionId) {
-      loadLeaderboards();
+    if (globalConfig.promotionId && globalConfig.externalId1 && globalConfig.externalId2) {
+      fetchInitialData();
     }
-  }, [globalConfig.promotionId, fetchEndpoint]);
+  }, [globalConfig.promotionId, globalConfig.externalId1, globalConfig.externalId2, fetchEndpoint]);
 
   if (loading) {
     return <div className="leaderboard-loading">Loading leaderboards...</div>;
@@ -267,10 +207,6 @@ const Leaderboard = () => {
 
   if (error) {
     return <div className="leaderboard-error">Error: {error}</div>;
-  }
-
-  if (!leaderboards.length) {
-    return <div className="leaderboard-empty">No leaderboards available</div>;
   }
 
   return (
