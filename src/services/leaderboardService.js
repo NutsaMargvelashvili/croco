@@ -217,7 +217,7 @@ export const fetchLeaderboardTimeline = async (fetchEndpoint, externalId) => {
       throw new Error(response.message || 'Failed to fetch leaderboard timeline');
     }
 
-    return response
+    return response.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   } catch (error) {
     console.error('Error in fetchLeaderboardTimeline:', error);
