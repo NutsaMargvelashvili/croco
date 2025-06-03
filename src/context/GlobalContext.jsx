@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { globals } from '../configs/global.config';
 import { fetchEndpoint } from '../utils/fetchEndpoint.util';
+import { authenticateWithCasinoToken } from '../services/authService.js';
+import { useRef } from 'react';
 
 export const GlobalContext = createContext();
 
@@ -15,9 +17,11 @@ const tryParseJson = (text) => {
 };
 
 export const GlobalProvider = ({ children }) => {
+  const didRunRef = useRef(false);
+
+  console.log('2222');
   const urlParams = new URLSearchParams(window.location.search);
   
-  // Get values from URL or fall back to global config
   const promotionIdFromUrl = urlParams.get("promotionId") || 
                            urlParams.get("promotionid") || 
                            urlParams.get("promotion-id") ||
@@ -34,7 +38,6 @@ export const GlobalProvider = ({ children }) => {
                            
   const tokenFromUrl = urlParams.get("token");
 
-  // Initialize with URL values or global config values
   const [globalConfig, setGlobalConfig] = useState({
     ...globals,
     promotionId: promotionIdFromUrl || globals.promotionId,
@@ -54,81 +57,113 @@ export const GlobalProvider = ({ children }) => {
     }
   });
 
-  
-
-
-
   useEffect(() => {
-    const setupGlobals = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      let valuesUpdated = false;
+    const setupGlobalsAndFetchAuthToken = async () => {
+      if (didRunRef.current) return; // TODO: Remove later
+       didRunRef.current = true;  // TODO: Remove later
+      const currentUrlParams = new URLSearchParams(window.location.search);
+      
+      let resolvedPromotionId = currentUrlParams.get("promotionId") || 
+                               currentUrlParams.get("promotionid") || 
+                               currentUrlParams.get("promotion-id") ||
+                               currentUrlParams.get("promoId") ||
+                               currentUrlParams.get("promoid") ||
+                               globals.promotionId;
+      if (!resolvedPromotionId) {
+        resolvedPromotionId = prompt("Enter promotionId", globals.promotionId || "");
+      }
   
-      // Get values from URL first, then globals
-      const promotionId = urlParams.get("promotionId") || 
-                         urlParams.get("promotionid") || 
-                         urlParams.get("promotion-id") ||
-                         urlParams.get("promoId") ||
-                         urlParams.get("promoid") ||
-                         globals.promotionId ||
-                         prompt("Enter promotionId", "") 
+      let resolvedExternalId1 = currentUrlParams.get("externalId1") ||
+                               currentUrlParams.get("externalid1") ||
+                               currentUrlParams.get("external-id1") ||
+                               globals.externalId1;
+      if (!resolvedExternalId1) {
+        resolvedExternalId1 = prompt("Enter externalId1", globals.externalId1 || "");
+      }
   
-      const externalId1 = urlParams.get("externalId1") ||
-                         urlParams.get("externalid1") ||
-                         urlParams.get("external-id1") ||
-                         globals.externalId1 ||
-                         prompt("Enter externalId1", "") 
+      let resolvedExternalId2 = currentUrlParams.get("externalId2") ||
+                               currentUrlParams.get("externalid2") ||
+                               currentUrlParams.get("external-id2") ||
+                               globals.externalId2;
+      if (!resolvedExternalId2) {
+        resolvedExternalId2 = prompt("Enter externalId2", globals.externalId2 || "");
+      }
+      
+      let finalTokenToSet = currentUrlParams.get("token") || globals.token;
+
+      if(!finalTokenToSet){
+      try {
+        if (!globals.casinoToken) {
+          console.warn('GlobalContext: CasinoToken is not defined in global.config.js. Using fallback token.');
+        } else {
+          console.log(`GlobalContext: Attempting Hub Authentication with casinoToken: ${globals.casinoToken}`);
+          const fetchedHubAccessToken = await authenticateWithCasinoToken(globals.casinoToken);
+          if (fetchedHubAccessToken) {
+            finalTokenToSet = fetchedHubAccessToken;
+            console.log('GlobalContext: Successfully fetched Hub accessToken. This will be used as the application token.');
+          } else {
+            console.warn('GlobalContext: Hub Authentication failed or did not return a token. Using static token from global.config.js or URL.');
+          }
+        }
+      } catch (error) {
+        console.error('GlobalContext: Error during Hub Authentication. Using static token from global.config.js or URL.', error);
+      }
+    }
   
-      const externalId2 = urlParams.get("externalId2") ||
-                         urlParams.get("externalid2") ||
-                         urlParams.get("external-id2") ||
-                         globals.externalId2 ||
-                         prompt("Enter externalId2", "") 
-  
-      // Update state with new values
       setGlobalConfig(prev => ({
         ...prev,
-        promotionId,
-        externalId1,
-        externalId2
+        promotionId: resolvedPromotionId,
+        externalId1: resolvedExternalId1,
+        externalId2: resolvedExternalId2,
+        token: finalTokenToSet 
       }));
   
-      // Update URL with final values
-      urlParams.set("promotionId", promotionId);
-      if (externalId1) urlParams.set("externalId1", externalId1);
-      if (externalId2) urlParams.set("externalId2", externalId2);
-      window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+      const newHistoryUrlParams = new URLSearchParams();
+      if (resolvedPromotionId) newHistoryUrlParams.set("promotionid", resolvedPromotionId);
+      if (finalTokenToSet) newHistoryUrlParams.set("token", finalTokenToSet);
+      if (resolvedExternalId1) newHistoryUrlParams.set("externalId1", resolvedExternalId1);
+      if (resolvedExternalId2) newHistoryUrlParams.set("externalId2", resolvedExternalId2);
+      
+      const currentPath = window.location.pathname;
+      const newSearchString = newHistoryUrlParams.toString();
+      const oldSearchString = currentUrlParams.toString();
+
+      if (newSearchString !== oldSearchString) {
+        window.history.replaceState({}, '', `${currentPath}${newSearchString ? '?' + newSearchString : ''}`);
+        console.log('GlobalContext: URL updated with fetched/fallback token and params.');
+      }
     };
-    setupGlobals()
-  },[])
-  // Add effect to handle URL parameter changes
+    setupGlobalsAndFetchAuthToken();
+  }, []); 
+
   useEffect(() => {
     const handleUrlChange = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const promotionIdFromUrl = urlParams.get("promotionId") || 
-                               urlParams.get("promotionid") || 
-                               urlParams.get("promotion-id") ||
-                               urlParams.get("promoId") ||
-                               urlParams.get("promoid");
+      const currentUrlParams = new URLSearchParams(window.location.search);
+      const promotionIdFromUrlOnChange = currentUrlParams.get("promotionId") || 
+                                       currentUrlParams.get("promotionid") || 
+                                       currentUrlParams.get("promotion-id") ||
+                                       currentUrlParams.get("promoId") ||
+                                       currentUrlParams.get("promoid");
       
-      const tokenFromUrl = urlParams.get("token");
-      const externalId1FromUrl = urlParams.get("externalId1") ||
-                               urlParams.get("externalid1") ||
-                               urlParams.get("external-id1");
+      const tokenFromUrlOnChange = currentUrlParams.get("token");
+      const externalId1FromUrlOnChange = currentUrlParams.get("externalId1") ||
+                                       currentUrlParams.get("externalid1") ||
+                                       currentUrlParams.get("external-id1");
                                
-      const externalId2FromUrl = urlParams.get("externalId2") ||
-                               urlParams.get("externalid2") ||
-                               urlParams.get("external-id2");
+      const externalId2FromUrlOnChange = currentUrlParams.get("externalId2") ||
+                                       currentUrlParams.get("externalid2") ||
+                                       currentUrlParams.get("external-id2");
 
       setGlobalConfig(prev => ({
         ...prev,
-        promotionId: promotionIdFromUrl || globals.promotionId || prev.promotionId,
-        externalId1: externalId1FromUrl || globals.externalId1 || prev.externalId1,
-        externalId2: externalId2FromUrl || globals.externalId2 || prev.externalId2,
-        token: tokenFromUrl || globals.token || prev.token
+        promotionId: promotionIdFromUrlOnChange || globals.promotionId || prev.promotionId,
+        externalId1: externalId1FromUrlOnChange || globals.externalId1 || prev.externalId1,
+        externalId2: externalId2FromUrlOnChange || globals.externalId2 || prev.externalId2,
+        token: tokenFromUrlOnChange !== null ? tokenFromUrlOnChange : prev.token 
       }));
+      console.log('GlobalContext: popstate processed, config updated.');
     };
 
-    // Listen for URL changes
     window.addEventListener('popstate', handleUrlChange);
     return () => window.removeEventListener('popstate', handleUrlChange);
   }, []);
@@ -137,7 +172,7 @@ export const GlobalProvider = ({ children }) => {
     <GlobalContext.Provider value={{ 
       globalConfig,
       setGlobalConfig,
-      fetchEndpoint 
+      fetchEndpoint
     }}>
       {children}
     </GlobalContext.Provider>

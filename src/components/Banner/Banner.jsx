@@ -4,7 +4,7 @@ const Banner = () => {
   return (
     <div className="banner">
       <img 
-        src="https://st-filesvc.onaim.io/images/3dc6a35538d6df04617a9a0876837efaff597fe9.png" 
+        src="https://static.vecteezy.com/system/resources/thumbnails/040/890/255/small_2x/ai-generated-empty-wooden-table-on-the-natural-background-for-product-display-free-photo.jpg" 
         alt="Leaderboard Banner"
         className="banner-image"
       />
