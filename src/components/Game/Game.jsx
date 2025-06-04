@@ -14,7 +14,7 @@ const Game = () => {
 
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      let gameUrl = "http://192.168.88.201:3004/";
+      let gameUrl = "http://192.168.88.201:8091/";
       
       // Get promotionId from globals first, then URL
       const promotionId = globalConfig.promotionId || 
