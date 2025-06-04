@@ -1,6 +1,6 @@
 export const globals = {
   defaultLanguage: 'en',
-  promotionId: '50',
+  promotionId: '99',
   externalId1: '29',
   externalId2: '30',
   casinoToken: '77',

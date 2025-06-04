@@ -4,7 +4,7 @@ const Banner = () => {
   return (
     <div className="banner">
       <img 
-        src="https://static.vecteezy.com/system/resources/thumbnails/040/890/255/small_2x/ai-generated-empty-wooden-table-on-the-natural-background-for-product-display-free-photo.jpg" 
+        src="https://promotions.crocobet.com/egtfreespin/images/bg2-1.png?crc=440305890" 
         alt="Leaderboard Banner"
         className="banner-image"
       />
